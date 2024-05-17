@@ -97,6 +97,20 @@ async def get_album_info(album_id: str, token: str, storefront: str, lang: str):
                                        "fields[record-labels]": "name", "l": lang},
                                headers={"Authorization": f"Bearer {token}", "User-Agent": user_agent_browser,
                                         "Origin": "https://music.apple.com"})
+        audio_lang = req.json().get('data',[{}])[0].get('attributes', {}).get('audioLocale','')
+        if audio_lang:
+            if audio_lang == 'ja' and storefront.lower() == 'us':     
+                try:
+                    new_req = client.get(f"https://amp-api.music.apple.com/v1/catalog/jp/albums/{album_id}",
+                        params={"omit[resource]": "autos", "include": "tracks,artists,record-labels",
+                                "include[songs]": "artists", "fields[artists]": "name",
+                                "fields[albums:albums]": "artistName,artwork,name,releaseDate,url",
+                                "fields[record-labels]": "name", "l": lang},
+                        headers={"Authorization": f"Bearer {token}", "User-Agent": user_agent_browser,
+                                "Origin": "https://music.apple.com"})
+                    return AlbumMeta.model_validate(new_req.json())
+                except Exception as e:
+                    print('Fallback to JP store for info failed')
         return AlbumMeta.model_validate(req.json())
 
 
@@ -162,6 +176,20 @@ async def get_song_info(song_id: str, token: str, storefront: str, lang: str):
                                params={"extend": "extendedAssetUrls", "include": "albums,explicit", "l": lang},
                                headers={"Authorization": f"Bearer {token}", "User-Agent": user_agent_itunes,
                                         "Origin": "https://music.apple.com"})
+        audio_lang = req.json().get('data',[{}])[0].get('attributes', {}).get('audioLocale','')
+        if audio_lang:
+            if audio_lang == 'ja' and storefront.lower() == 'us':     
+                try:
+                    new_req = await client.get(f"https://amp-api.music.apple.com/v1/catalog/jp/songs/{song_id}",
+                    params={"extend": "extendedAssetUrls", "include": "albums,explicit", "l": lang},
+                    headers={"Authorization": f"Bearer {token}", "User-Agent": user_agent_itunes,
+                            "Origin": "https://music.apple.com"})
+                    song_data_obj = SongData.model_validate(new_req.json())
+                    for data in song_data_obj.data:
+                        if data.id == song_id:
+                            return data
+                except Exception as e:
+                    print('Fallback to JP store for info failed')
         song_data_obj = SongData.model_validate(req.json())
         for data in song_data_obj.data:
             if data.id == song_id:
